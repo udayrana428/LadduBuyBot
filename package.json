@@ -1,0 +1,23 @@
+{
+  "name": "laddu-buy-bot",
+  "version": "1.0.0",
+  "description": "LadduBuyBot is everyone's favorite Telegram bot that alerts your community whenever someone buys your crypto token on a DEX.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "nodemon index.js"
+  },
+  "author": "Uday",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.7.9",
+    "dotenv": "^16.4.7",
+    "ethers": "^6.13.5",
+    "express": "^4.21.2",
+    "mongoose": "^8.10.0",
+    "node-telegram-bot-api": "^0.66.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9"
+  }
+}
