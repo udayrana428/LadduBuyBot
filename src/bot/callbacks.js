@@ -1,5 +1,6 @@
 const bot = require("./bot");
 const { userAdminGroups } = require("./commands");
+const Group = require("../models/Group");
 
 bot.on("callback_query", async (callbackQuery) => {
   const chatId = callbackQuery.message.chat.id;
@@ -7,47 +8,106 @@ bot.on("callback_query", async (callbackQuery) => {
   const data = callbackQuery.data;
 
   if (data === "add_token") {
-    const userGroups = userAdminGroups.get(userId) || new Set();
+    const replyKeyboard = {
+      reply_markup: {
+        keyboard: [[{ text: "📌 Click Here to Select Your Group" }]],
+        resize_keyboard: true,
+        one_time_keyboard: true,
+      },
+    };
+    await bot.sendMessage(
+      chatId,
+      "Use the buttons below to select the group or channel that you want to add or modify Bobby with (If Bobby is not in this group then it will be automatically added):",
+      replyKeyboard
+    );
+  } else if (data.startsWith("confirm_group_")) {
+    const groupId = data.split("_")[2];
 
-    if (userGroups.size > 0) {
-      const group = Array.from(userGroups)[0];
+    try {
+      const group = await Group.findOne({ groupId });
+      if (!group) return bot.sendMessage(chatId, "❌ Group not found.");
 
-      const groupInlineKeyboard = {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: "🆕 Add a New Token", callback_data: "new_token" }],
-            [
-              {
-                text: "⚙️ Change Token Settings",
-                callback_data: "modify_token",
-              },
-            ],
-            [{ text: "❌ Cancel", callback_data: "cancel" }],
-          ],
-        },
-      };
-
-      await bot.sendMessage(
+      bot.sendMessage(
         chatId,
-        `🤖 What would you like to do for *${group.title}*?`,
+        `What are you wanting to do for *${group.title}* today?`,
         {
           parse_mode: "Markdown",
-          ...groupInlineKeyboard,
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: "➕ Add a New Token",
+                  callback_data: `new_token_${groupId}`,
+                },
+              ],
+              [
+                {
+                  text: "⚙ Change Token Settings",
+                  callback_data: `change_token_${groupId}`,
+                },
+              ],
+              [{ text: "❌ Cancel", callback_data: "cancel_action" }],
+            ],
+          },
         }
       );
-    } else {
-      await bot.sendMessage(
-        chatId,
-        "⚠️ You haven't added the bot to any groups yet."
-      );
+    } catch (error) {
+      console.error("Error processing group confirmation:", error);
+      bot.sendMessage(chatId, "❌ An error occurred. Please try again.");
     }
-  } else if (data === "new_token") {
-    bot.sendMessage(
-      chatId,
-      `📝 *Please paste the token address you would like me to track...*\n\nI support the following chains:\n\n` +
-        `🔸 *EthereumPOW (ETHw)*\n` +
-        { parse_mode: "Markdown" }
-    );
+  } else if (data.startsWith("select_group_")) {
+    const groupId = data.split("_")[2];
+
+    try {
+      const group = await Group.findOne({ groupId });
+      if (!group) {
+        return bot.sendMessage(chatId, "❌ Group not found.");
+      }
+
+      bot.sendMessage(
+        chatId,
+        `Are you sure you want to send *${group.title}* to BobbyBuyBot?\n\nThis will also add BobbyBuyBot to *${group.title}* with the following rights:\n- Add Users`,
+        {
+          parse_mode: "Markdown",
+          reply_markup: {
+            inline_keyboard: [
+              [
+                { text: "✅ Send", callback_data: `confirm_group_${groupId}` },
+                { text: "❌ Cancel", callback_data: "cancel_selection" },
+              ],
+            ],
+          },
+        }
+      );
+    } catch (error) {
+      console.error("Error fetching group details:", error);
+      bot.sendMessage(chatId, "❌ An error occurred. Please try again.");
+    }
+  } else if (data.startsWith("new_token_")) {
+    const groupId = data.split("_")[2];
+
+    try {
+      const group = await Group.findOne({ groupId });
+      if (!group) return bot.sendMessage(chatId, "❌ Group not found.");
+
+      // Implement your logic for adding a token here
+      bot.sendMessage(
+        chatId,
+        `🔹 Please paste the token address you would like me to track in *${group.title}*.\n\nI support the following chains:\n\n` +
+          "🔸 Ethw\n" +
+          "🔸 Bsc\n",
+        {
+          parse_mode: "Markdown",
+          reply_markup: {
+            force_reply: true, // Forces the user to reply
+            input_field_placeholder: "Paste token address here...", // Sets placeholder text
+          },
+        }
+      );
+    } catch (error) {
+      console.error("Error handling new token:", error);
+      bot.sendMessage(chatId, "❌ An error occurred. Please try again.");
+    }
   } else if (data === "modify_token") {
     bot.sendMessage(
       chatId,

@@ -3,7 +3,7 @@ const express = require("express");
 const mongoose = require("./src/database/db");
 const { startBot } = require("./src/bot");
 // const { listenToBuys } = require("./src/blockchain/listener");
-// const routes = require("./src/routes/index");
+const routes = require("./src/routes/index");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -12,7 +12,7 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 
 // Routes
-// app.use("/api", routes);
+app.use("/api", routes);
 
 // Start Telegram Bot
 startBot();

@@ -1,14 +1,34 @@
 const bot = require("./bot");
+const mongoose = require("mongoose");
+const Group = require("../models/Group"); // Group model
+const User = require("../models/User"); // User model
 
 const userAdminGroups = new Map(); // Stores user-admin groups
 
 bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
+  const username = msg.from.username || msg.from.first_name; // Get username or first name
 
-  if (msg.chat.type === "group" || msg.chat.type === "supergroup") {
-    try {
+  try {
+    // Check if the user exists in the database
+    let user = await User.findOne({ userId: userId });
+
+    if (!user) {
+      user = new User({
+        userId,
+        username,
+        firstName: msg.from.first_name,
+        lastName: msg.from.last_name || "",
+        adminGroups: [], // Ensure this field exists
+      });
+      await user.save();
+    }
+
+    if (msg.chat.type === "group" || msg.chat.type === "supergroup") {
+      // Group Handling
       const admins = await bot.getChatAdministrators(chatId);
+      const isUserAdmin = admins.some((admin) => admin.user.id === userId);
       const isBotAdmin = admins.some(
         (admin) => admin.user.id === bot.botInfo.id
       );
@@ -16,60 +36,103 @@ bot.onText(/\/start/, async (msg) => {
       if (!isBotAdmin) {
         return bot.sendMessage(
           chatId,
-          "⚠️ I need to be an admin to function properly."
+          "⚠️ I need to be an admin to function properly. Please grant me admin permissions."
         );
       }
 
-      if (!userAdminGroups.has(userId)) {
-        userAdminGroups.set(userId, new Set());
+      let group = await Group.findOne({ groupId: chatId });
+
+      if (!group) {
+        // If group doesn't exist, create it
+        group = new Group({
+          groupId: chatId,
+          title: msg.chat.title,
+          owner: isUserAdmin ? user._id : null, // Set owner only if the user is an admin
+          admins: isUserAdmin ? [user._id] : [],
+          members: !isUserAdmin ? [user._id] : [],
+        });
+        await group.save();
+        bot.sendMessage(
+          chatId,
+          `✅ Bot is now active in this group. ${
+            isUserAdmin ? "You have admin rights." : "You are a member."
+          }`
+        );
+        bot.sendMessage(
+          userId,
+          `✅ Bot has been successfully added to *${msg.chat.title}* and is now active. Use /start to begin.`,
+          { parse_mode: "Markdown" }
+        );
+      } else {
+        // If group exists, update user role
+        if (isUserAdmin && !group.admins.includes(user._id)) {
+          group.admins.push(user._id);
+          await group.save();
+          bot.sendMessage(chatId, `✅ ${username}, you are now an admin.`);
+        } else if (!isUserAdmin && !group.members.includes(user._id)) {
+          group.members.push(user._id);
+          await group.save();
+          bot.sendMessage(
+            chatId,
+            `✅ ${username}, you have been added as a member.`
+          );
+        }
       }
-      userAdminGroups.get(userId).add({ id: chatId, title: msg.chat.title });
 
-      bot.sendMessage(chatId, "✅ Bot is now active in this group.");
-      bot.sendMessage(
-        userId,
-        `✅ Bot has been successfully added to *${msg.chat.title}* and is now active. Use /start to begin.`,
-        { parse_mode: "Markdown" }
-      );
-    } catch (error) {
-      console.error("Error fetching group admins:", error);
-    }
-  } else {
-    const replyKeyboard = {
-      reply_markup: {
-        keyboard: [[{ text: "📌 Click Here to Select Your Group" }]],
-        resize_keyboard: true,
-      },
-    };
-
-    const inlineKeyboard = {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            {
-              text: "➕ Add a Token / Change Token Settings",
-              callback_data: "add_token",
-            },
+      // ✅ Ensure user's `adminGroups` field is updated without duplicates
+      if (isUserAdmin) {
+        if (!Array.isArray(user.adminGroups)) {
+          user.adminGroups = [];
+        }
+        const existingAdminGroups = user.adminGroups.map((id) => id.toString());
+        if (!existingAdminGroups.includes(group._id.toString())) {
+          user.adminGroups.push(group._id);
+          await user.save();
+        }
+      }
+    } else {
+      // Private Chat Handling
+      const inlineKeyboard = {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: "➕ Add a Token / Change Token Settings",
+                callback_data: "add_token",
+              },
+            ],
           ],
-          // [
-          //   {
-          //     text: "⚙️ Change Token Settings",
-          //     callback_data: "change_token_settings",
-          //   },
-          // ],
-        ],
-      },
-    };
+        },
+      };
 
-    bot
-      .sendMessage(
+      await bot.sendMessage(
         chatId,
-        "Welcome to Bobby Buy Bot! 🚀\n\nSelect an option below:",
-        replyKeyboard
-      )
-      .then(() =>
-        bot.sendMessage(chatId, "🔹 Choose an action:", inlineKeyboard)
+        "Welcome to Bobby Buy Bot! 🚀\n\nSelect an option below:"
       );
+      await bot.sendMessage(chatId, "🔹 Choose an action:", inlineKeyboard);
+
+      // ✅ Check if the user is an admin in any groups
+      const adminGroups = await Group.find({ admins: user._id });
+
+      if (adminGroups.length > 0) {
+        const groupIds = adminGroups.map((group) => group._id.toString());
+
+        if (!Array.isArray(user.adminGroups)) {
+          user.adminGroups = [];
+        }
+        const existingAdminGroups = user.adminGroups.map((id) => id.toString());
+        const newAdminGroups = groupIds.filter(
+          (id) => !existingAdminGroups.includes(id)
+        );
+
+        if (newAdminGroups.length > 0) {
+          user.adminGroups.push(...newAdminGroups);
+          await user.save();
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Error handling /start:", error);
   }
 });
 
