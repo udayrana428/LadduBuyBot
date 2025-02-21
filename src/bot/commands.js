@@ -107,7 +107,7 @@ bot.onText(/\/start/, async (msg) => {
 
       await bot.sendMessage(
         chatId,
-        "Welcome to Bobby Buy Bot! 🚀\n\nSelect an option below:"
+        "Welcome to Laddu Buy Bot! 🚀\n\nSelect an option below:"
       );
       await bot.sendMessage(chatId, "🔹 Choose an action:", inlineKeyboard);
 

@@ -4,6 +4,7 @@ const mongoose = require("./src/database/db");
 const { startBot } = require("./src/bot");
 // const { listenToBuys } = require("./src/blockchain/listener");
 const routes = require("./src/routes/index");
+const { connectWebSocket } = require("./src/services/websocketService");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -15,10 +16,13 @@ app.use(express.json());
 app.use("/api", routes);
 
 // Start Telegram Bot
-startBot();
+startBot(app);
 
 // Start Blockchain Listener
 // listenToBuys();
+
+// Websocket Connection
+connectWebSocket();
 
 app.get("/", (req, res) => {
   res.send("Telegram DEX Bot is running 🚀");

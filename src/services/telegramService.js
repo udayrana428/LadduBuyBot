@@ -1,8 +1,12 @@
-const TelegramBot = require("node-telegram-bot-api");
-const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN);
+const bot = require("../bot/bot"); // Assuming this is your bot instance
 
-const sendMessage = (chatId, text) => {
-  bot.sendMessage(chatId, text);
-};
+function sendTelegramNotification(groupId, transaction) {
+  const message = `🚀 New ${transaction.type} Transaction!
+💰 Amount: ${transaction.amount}  
+🔗 Token: ${transaction.tokenAddress}  
+🔍 TX Hash: ${transaction.txHash}`;
 
-module.exports = { sendMessage };
+  bot.sendMessage(groupId, message);
+}
+
+module.exports = { sendTelegramNotification };

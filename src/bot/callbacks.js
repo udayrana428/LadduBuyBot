@@ -1,6 +1,20 @@
 const bot = require("./bot");
 const { userAdminGroups } = require("./commands");
 const Group = require("../models/Group");
+const Token = require("../models/Token"); // Assuming you have a Token model
+
+const SUPPORTED_CHAINS = [
+  "Ethw",
+  "Bsc",
+  "Polygon",
+  "Avax",
+  "Arb",
+  "Base",
+  "Tron",
+  "Unichain",
+];
+
+let userState = {}; // Temporary storage for user selections
 
 bot.on("callback_query", async (callbackQuery) => {
   const chatId = callbackQuery.message.chat.id;
@@ -17,7 +31,7 @@ bot.on("callback_query", async (callbackQuery) => {
     };
     await bot.sendMessage(
       chatId,
-      "Use the buttons below to select the group or channel that you want to add or modify Bobby with (If Bobby is not in this group then it will be automatically added):",
+      "Use the buttons below to select the group or channel that you want to add or modify Laddu with (If Laddu is not in this group then it will be automatically added):",
       replyKeyboard
     );
   } else if (data.startsWith("confirm_group_")) {
@@ -60,13 +74,11 @@ bot.on("callback_query", async (callbackQuery) => {
 
     try {
       const group = await Group.findOne({ groupId });
-      if (!group) {
-        return bot.sendMessage(chatId, "❌ Group not found.");
-      }
+      if (!group) return bot.sendMessage(chatId, "❌ Group not found.");
 
       bot.sendMessage(
         chatId,
-        `Are you sure you want to send *${group.title}* to BobbyBuyBot?\n\nThis will also add BobbyBuyBot to *${group.title}* with the following rights:\n- Add Users`,
+        `Are you sure you want to send *${group.title}* to LadduBuyBot?\n\nThis will also add LadduBuyBot to *${group.title}* with the following rights:\n- Add Users`,
         {
           parse_mode: "Markdown",
           reply_markup: {
@@ -90,17 +102,18 @@ bot.on("callback_query", async (callbackQuery) => {
       const group = await Group.findOne({ groupId });
       if (!group) return bot.sendMessage(chatId, "❌ Group not found.");
 
-      // Implement your logic for adding a token here
+      // Store the group selection for the user
+      userState[userId] = { groupId };
+
+      // Ask the user to select a chain
       bot.sendMessage(
         chatId,
-        `🔹 Please paste the token address you would like me to track in *${group.title}*.\n\nI support the following chains:\n\n` +
-          "🔸 Ethw\n" +
-          "🔸 Bsc\n",
+        "🔹 Please select the blockchain where the token exists:",
         {
-          parse_mode: "Markdown",
           reply_markup: {
-            force_reply: true, // Forces the user to reply
-            input_field_placeholder: "Paste token address here...", // Sets placeholder text
+            keyboard: SUPPORTED_CHAINS.map((chain) => [{ text: chain }]),
+            resize_keyboard: true,
+            one_time_keyboard: true,
           },
         }
       );
@@ -119,3 +132,5 @@ bot.on("callback_query", async (callbackQuery) => {
 
   bot.answerCallbackQuery(callbackQuery.id);
 });
+
+module.exports = { userState, SUPPORTED_CHAINS };

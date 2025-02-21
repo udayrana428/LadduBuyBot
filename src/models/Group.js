@@ -16,7 +16,7 @@ const groupSchema = new mongoose.Schema({
         required: true,
       },
       settings: {
-        minBuyValue: { type: Number, default: 0 }, // Notify only if buy is above this value
+        minBuyValue: { type: Number, default: 50 }, // Notify only if buy is above this value
         buyAlerts: { type: Boolean, default: true }, // Enable buy alerts
         sellAlerts: { type: Boolean, default: true }, // Enable sell alerts
         priceTracking: { type: Boolean, default: false }, // Track token price

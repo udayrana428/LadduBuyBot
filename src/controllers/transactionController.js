@@ -1,5 +1,83 @@
 const Transaction = require("../models/Transaction");
 
+const Group = require("../models/Group");
+const { sendTelegramNotification } = require("../services/telegramService");
+const Token = require("../models/Token");
+
+// Better Approach
+async function processFinalTransaction(data) {
+  const { tokenAddress, amount, type, txHash } = data;
+
+  // 🔍 Step 1: Find the token
+  const token = await Token.findOne({ address: tokenAddress }).populate(
+    "groups"
+  );
+
+  if (!token) {
+    console.log(`⚠️ Token ${tokenAddress} not found in DB.`);
+    return;
+  }
+
+  // 🔍 Step 2: Get all groups tracking this token
+  const groups = token.groups;
+
+  for (const group of groups) {
+    const tokenSettings = group.tokens.find(
+      (t) => t.token.toString() === token._id.toString()
+    );
+    if (!tokenSettings) continue;
+
+    const { minBuyValue, buyAlerts, sellAlerts } = tokenSettings.settings;
+
+    if (
+      (type === "BUY" && buyAlerts && amount >= minBuyValue) ||
+      (type === "SELL" && sellAlerts)
+    ) {
+      sendTelegramNotification(group.groupId, data);
+    }
+  }
+}
+
+//For very large datasets (millions of records): Use aggregation for better performance.
+
+// async function processFinalTransaction(data) {
+//   const { tokenAddress, amount, type, txHash } = data;
+
+//   const token = await Token.aggregate([
+//     { $match: { address: tokenAddress } },
+//     { $lookup: {
+//         from: "groups",
+//         localField: "groups",
+//         foreignField: "_id",
+//         as: "groupDetails"
+//       }
+//     }
+//   ]);
+
+//   if (!token.length) {
+//     console.log(`⚠️ Token ${tokenAddress} not found in DB.`);
+//     return;
+//   }
+
+//   const groups = token[0].groupDetails;
+
+//   for (const group of groups) {
+//     const tokenSettings = group.tokens.find(
+//       (t) => t.token.toString() === token[0]._id.toString()
+//     );
+//     if (!tokenSettings) continue;
+
+//     const { minBuyValue, buyAlerts, sellAlerts } = tokenSettings.settings;
+
+//     if (
+//       (type === "BUY" && buyAlerts && amount >= minBuyValue) ||
+//       (type === "SELL" && sellAlerts)
+//     ) {
+//       sendTelegramNotification(group.groupId, data);
+//     }
+//   }
+// }
+
 const recordTransaction = async (req, res) => {
   try {
     const { token, group, txHash, buyer, amount, value, type } = req.body;
@@ -37,4 +115,8 @@ const getTransactions = async (req, res) => {
   }
 };
 
-module.exports = { recordTransaction, getTransactions };
+module.exports = {
+  recordTransaction,
+  getTransactions,
+  processFinalTransaction,
+};
