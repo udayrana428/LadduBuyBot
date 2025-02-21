@@ -70,30 +70,33 @@ function connectWebSocket() {
         reconnectAttempts = 0;
 
         // ✅ Subscribe to Transactions Topic
-        stompClient.subscribe("/topic/tokenBuySell", (message) => {
-          try {
-            const data = JSON.parse(message.body);
-            console.log("🔹 Received Trade Event:", data);
+        stompClient.subscribe(
+          "/topic/tokenBuySell/0xBBfCAB3e1a4Aba7C1624a93430AD2467C38f9BBB",
+          (message) => {
+            try {
+              const data = JSON.parse(message.body);
+              console.log("🔹 Received Trade Event:", data);
 
-            // Validate transaction data
-            if (isValidTransaction(data)) {
-              const transaction = {
-                txHash: data.hash,
-                tokenAddress: data.tokenAddress,
-                amount: data.amount,
-                price: data.price,
-                type: data.type, // 'buy' or 'sell'
-                timestamp: data.timestamp,
-              };
+              // Validate transaction data
+              if (isValidTransaction(data)) {
+                const transaction = {
+                  txHash: data.hash,
+                  tokenAddress: data.tokenAddress,
+                  amount: data.amount,
+                  price: data.price,
+                  type: data.type, // 'buy' or 'sell'
+                  timestamp: data.timestamp,
+                };
 
-              processFinalTransaction(transaction);
-            } else {
-              console.log("⚠️ Invalid transaction data received");
+                processFinalTransaction(transaction);
+              } else {
+                console.log("⚠️ Invalid transaction data received");
+              }
+            } catch (error) {
+              console.error("❌ Error processing message:", error);
             }
-          } catch (error) {
-            console.error("❌ Error processing message:", error);
           }
-        });
+        );
       },
 
       onStompError: (error) => {
