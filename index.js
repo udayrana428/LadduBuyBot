@@ -25,7 +25,7 @@ startBot(app);
 connectWebSocket();
 
 app.get("/", (req, res) => {
-  res.send("Telegram DEX Bot is running 🚀");
+  res.send("LadduBuyBot is running 🚀");
 });
 
 // Start Express Server

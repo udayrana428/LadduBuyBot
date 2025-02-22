@@ -50,13 +50,20 @@ const {
 // WebSocket URL for PowTools
 const POWTOOLS_WS_URL = "https://powtools.io/ws";
 
+// Token-specific subscription
+const SPECIFIC_TOKEN_TOPIC =
+  "/topic/tokenBuySell/0xBBfCAB3e1a4Aba7C1624a93430AD2467C38f9BBB";
+
+// Subscription for all tokens
+const ALL_TOKENS_TOPIC = "/topic/tokenBuySellForTG";
+
 let stompClient = null;
 let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_DELAY = 5000;
 
 function connectWebSocket() {
-  console.log("🔌 Attempting to connect to DEX WebSocket...");
+  console.log("🔌 Attempting to connect to Powtools WebSocket...");
 
   try {
     const socket = new SockJS(POWTOOLS_WS_URL); // SockJS WebSocket Connection
@@ -66,37 +73,14 @@ function connectWebSocket() {
 
       reconnectDelay: RECONNECT_DELAY, // Auto-reconnect delay
       onConnect: () => {
-        console.log("✅ WebSocket Connected to DEX!");
+        console.log("✅ WebSocket Connected to Powtools!");
         reconnectAttempts = 0;
 
-        // ✅ Subscribe to Transactions Topic
-        stompClient.subscribe(
-          "/topic/tokenBuySell/0xBBfCAB3e1a4Aba7C1624a93430AD2467C38f9BBB",
-          (message) => {
-            try {
-              const data = JSON.parse(message.body);
-              console.log("🔹 Received Trade Event:", data);
+        // ✅ Subscribe to a specific token's transactions
+        subscribeToTopic(SPECIFIC_TOKEN_TOPIC);
 
-              // Validate transaction data
-              if (isValidTransaction(data)) {
-                const transaction = {
-                  txHash: data.hash,
-                  tokenAddress: data.tokenAddress,
-                  amount: data.amount,
-                  price: data.price,
-                  type: data.type, // 'buy' or 'sell'
-                  timestamp: data.timestamp,
-                };
-
-                processFinalTransaction(transaction);
-              } else {
-                console.log("⚠️ Invalid transaction data received");
-              }
-            } catch (error) {
-              console.error("❌ Error processing message:", error);
-            }
-          }
-        );
+        // ✅ Subscribe to transactions for all tokens
+        subscribeToTopic(ALL_TOKENS_TOPIC);
       },
 
       onStompError: (error) => {
@@ -128,15 +112,48 @@ function connectWebSocket() {
   }
 }
 
+// Function to subscribe to a topic
+function subscribeToTopic(topic) {
+  stompClient.subscribe(topic, (message) => {
+    try {
+      const data = JSON.parse(message.body);
+      console.log(`🔹 Received Trade Event from ${topic}:`, data);
+
+      // Validate transaction data
+      if (isValidTransaction(data)) {
+        const transaction = {
+          txHash: data.transactionHash,
+          tokenAddress: data.tokenAddress,
+          amount: data.amountOfToken,
+          price: data.tokenPriceInUsd,
+          type: data.tradeType, // 'buy' or 'sell'
+          timestamp: data.date,
+        };
+
+        processFinalTransaction(transaction);
+      } else {
+        console.log(`⚠️ Invalid transaction data received from ${topic}`);
+      }
+    } catch (error) {
+      console.error(`❌ Error processing message from ${topic}:`, error);
+    }
+  });
+}
+
 // Validate transaction data
 function isValidTransaction(data) {
   return (
     data &&
     typeof data === "object" &&
-    typeof data.hash === "string" &&
+    typeof data.transactionHash === "string" &&
     typeof data.tokenAddress === "string" &&
-    typeof data.amount === "string" &&
-    ["buy", "sell"].includes(data.type)
+    typeof data.amountOfToken === "number" &&
+    typeof data.amountOfEthW === "number" &&
+    typeof data.tokenPriceInUsd === "string" &&
+    typeof data.tokenPriceInEth === "string" &&
+    typeof data.maker === "string" &&
+    typeof data.tokenName === "string" &&
+    ["BUY", "SELL"].includes(data.tradeType)
   );
 }
 
