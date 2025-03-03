@@ -123,10 +123,13 @@ function subscribeToTopic(topic) {
       if (isValidTransaction(data)) {
         const transaction = {
           txHash: data.transactionHash,
+          tokenName: data.tokenName,
           tokenAddress: data.tokenAddress,
-          amount: data.amountOfToken,
-          price: data.tokenPriceInUsd,
+          amountOfToken: data.amountOfToken,
+          amountOfEthW: data.amountOfEthW,
+          tokenPriceInUsd: data.tokenPriceInUsd,
           type: data.tradeType, // 'buy' or 'sell'
+          maker: data.maker,
           timestamp: data.date,
           marketCap: data.marketCap,
         };

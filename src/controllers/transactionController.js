@@ -6,12 +6,11 @@ const Token = require("../models/Token");
 
 // Better Approach
 async function processFinalTransaction(data) {
-  const { tokenAddress, amount, type, txHash } = data;
+  const { tokenAddress, amountOfToken, tokenPriceInUsd, type, txHash } = data;
+  const txnValueInUsd = amountOfToken * tokenPriceInUsd;
 
   // 🔍 Step 1: Find the token
-  const token = await Token.findOne({ address: tokenAddress }).populate(
-    "groups"
-  );
+  const token = await Token.findOne({ address: tokenAddress });
 
   if (!token) {
     console.log(`⚠️ Token ${tokenAddress} not found in DB.`);
@@ -30,7 +29,7 @@ async function processFinalTransaction(data) {
     const { minBuyValue, buyAlerts, sellAlerts } = tokenSettings.settings;
 
     if (
-      (type === "BUY" && buyAlerts && amount >= minBuyValue) ||
+      (type === "BUY" && buyAlerts && txnValueInUsd >= minBuyValue) ||
       (type === "SELL" && sellAlerts)
     ) {
       sendTelegramNotification(group.groupId, data, token);

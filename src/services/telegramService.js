@@ -18,7 +18,7 @@ const explorers = {
 };
 
 function sendTelegramNotification(groupId, transaction, tokenData) {
-  const chain = transaction.chain.toLowerCase(); // Ensure lowercase chain name
+  const chain = tokenData.chain.toLowerCase(); // Ensure lowercase chain name
   const explorer = explorers[chain] || explorers["ethw"]; // Default to ETHW if not found
 
   const shortTxHash = transaction.txHash
@@ -30,7 +30,7 @@ function sendTelegramNotification(groupId, transaction, tokenData) {
     : "Unknown";
 
   const message = `
-🚀 *${transaction.tokenName} ${transaction.tradeType.toUpperCase()}!*  
+🚀 *${transaction.tokenName} ${transaction.type.toUpperCase()}!*  
 
 🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢  
 
