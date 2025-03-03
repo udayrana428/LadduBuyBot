@@ -34,9 +34,9 @@ function sendTelegramNotification(groupId, transaction, tokenData) {
 
 🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢  
 
-⚽ *$${formatCurrency(transaction.tokenPriceInUsd)}* (${
-    transaction.amountOfEthW
-  } ETH)  
+⚽ *$${formatCurrency(
+    transaction.tokenPriceInUsd * transaction.amountOfToken
+  )}* (${transaction.amountOfEthW} ETH)  
 🎾 *${formatAmount(transaction.amountOfToken)}* ${tokenData.symbol}  
 🥏 *Maker:* [${shortMaker}](${explorer.explorer}/address/${
     transaction.maker
