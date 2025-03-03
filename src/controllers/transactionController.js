@@ -33,7 +33,7 @@ async function processFinalTransaction(data) {
       (type === "BUY" && buyAlerts && amount >= minBuyValue) ||
       (type === "SELL" && sellAlerts)
     ) {
-      sendTelegramNotification(group.groupId, data);
+      sendTelegramNotification(group.groupId, data, token);
     }
   }
 }

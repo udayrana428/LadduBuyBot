@@ -2,6 +2,7 @@ const bot = require("./bot");
 const { userAdminGroups } = require("./commands");
 const Group = require("../models/Group");
 const Token = require("../models/Token"); // Assuming you have a Token model
+const { updateTokenSettingsMessage } = require("../services/telegramService");
 
 const SUPPORTED_CHAINS = [
   "Ethw",
@@ -20,8 +21,9 @@ bot.on("callback_query", async (callbackQuery) => {
   const chatId = callbackQuery.message.chat.id;
   const userId = callbackQuery.from.id;
   const data = callbackQuery.data;
+  const messageId = callbackQuery.message.message_id;
 
-  if (data === "add_token") {
+  if (data === "add_token/change_setting") {
     const replyKeyboard = {
       reply_markup: {
         keyboard: [[{ text: "📌 Click Here to Select Your Group" }]],
@@ -60,7 +62,7 @@ bot.on("callback_query", async (callbackQuery) => {
                   callback_data: `change_token_${groupId}`,
                 },
               ],
-              [{ text: "❌ Cancel", callback_data: "cancel_action" }],
+              [{ text: "❌ Cancel", callback_data: "cancel_home" }],
             ],
           },
         }
@@ -121,13 +123,234 @@ bot.on("callback_query", async (callbackQuery) => {
       console.error("Error handling new token:", error);
       bot.sendMessage(chatId, "❌ An error occurred. Please try again.");
     }
-  } else if (data === "modify_token") {
+  } else if (data.startsWith("change_token_")) {
+    const groupId = data.split("_")[2];
+
+    try {
+      const group = await Group.findOne({ groupId }).populate("tokens.token");
+
+      if (!group) return bot.sendMessage(chatId, "❌ Group not found.");
+
+      if (!group.tokens || group.tokens.length === 0) {
+        return bot.sendMessage(chatId, "❌ No tokens found for this group.");
+      }
+
+      // Create inline keyboard buttons for each token
+      const tokenButtons = group.tokens.map(({ token }) => [
+        {
+          text: `${token.name} (${token.symbol}) on ${token.chain} chain`,
+          callback_data: `edit_token_setting_${token._id}`,
+        },
+      ]);
+
+      bot.sendMessage(chatId, "⚙️ Choose a token to change settings:", {
+        reply_markup: {
+          inline_keyboard: [
+            ...tokenButtons,
+            [{ text: "❌ Cancel", callback_data: "cancel_home" }],
+          ],
+        },
+      });
+    } catch (error) {
+      console.error("Error fetching tokens for group:", error);
+      bot.sendMessage(chatId, "❌ An error occurred. Please try again.");
+    }
+  } else if (data.startsWith("edit_token_setting_")) {
+    const tokenId = data.split("_")[3];
+
+    try {
+      // Find the group that contains this token
+      const group = await Group.findOne({ "tokens.token": tokenId }).populate(
+        "tokens.token"
+      );
+
+      if (!group) return bot.sendMessage(chatId, "❌ Group not found.");
+
+      // Store the groupId in userState to persist it for later interactions
+      userState[userId] = { ...userState[userId], groupId: group.groupId };
+
+      // Find the token settings within the group
+      const tokenData = group.tokens.find(
+        (t) => t.token._id.toString() === tokenId
+      );
+
+      if (!tokenData) {
+        return bot.sendMessage(chatId, "❌ Token settings not found.");
+      }
+
+      const { token, settings } = tokenData;
+
+      bot.sendMessage(
+        chatId,
+        `⚙️ *Settings for ${token.name} (${token.symbol})*:\n\n` +
+          `Please click on each setting to change it`,
+        {
+          parse_mode: "Markdown",
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: `✏ Minimum Buy : ${settings.minBuyValue}`,
+                  callback_data: `set_minBuy_${tokenId}`,
+                },
+              ],
+              [
+                {
+                  text: settings.buyAlerts
+                    ? "🔴 Disable Buy Alerts"
+                    : "🟢 Enable Buy Alerts",
+                  callback_data: `toggle_buyAlerts_${tokenId}`,
+                },
+              ],
+              [
+                {
+                  text: settings.sellAlerts
+                    ? "🔴 Disable Sell Alerts"
+                    : "🟢 Enable Sell Alerts",
+                  callback_data: `toggle_sellAlerts_${tokenId}`,
+                },
+              ],
+              [
+                {
+                  text: settings.priceTracking
+                    ? "🔴 Disable Price Tracking"
+                    : "🟢 Enable Price Tracking",
+                  callback_data: `toggle_priceTracking_${tokenId}`,
+                },
+              ],
+              [{ text: "❌ Cancel", callback_data: "cancel_home" }],
+            ],
+          },
+        }
+      );
+    } catch (error) {
+      console.error("Error fetching token settings:", error);
+      bot.sendMessage(chatId, "❌ An error occurred. Please try again.");
+    }
+  } else if (data.startsWith("set_minBuy_")) {
+    const tokenId = data.split("_")[2];
+    const userGroup = userState[userId]?.groupId; // Retrieve user's selected group
+
+    if (!userGroup) return bot.sendMessage(chatId, "❌ Group not found.");
+
+    userState[userId] = {
+      ...userState[userId],
+      tokenId,
+      messageId,
+      waitingForMinBuy: true,
+    };
+
     bot.sendMessage(
       chatId,
-      "⚙️ Select the token you want to modify settings for:"
+      "✅ Please enter the minimum buy value (in dollars) below.\n\n" +
+        "🔹 Purchases below the minimum buy value will not be posted by Laddu.\n" +
+        "🔹 Minimum is 1.",
+      {
+        reply_markup: {
+          force_reply: true,
+          input_field_placeholder: "Put new minimum buy value...",
+        },
+      }
     );
+  } else if (data.startsWith("toggle_buyAlerts_")) {
+    const tokenId = data.split("_")[2];
+
+    try {
+      const group = await Group.findOne({ "tokens.token": tokenId }).populate(
+        "tokens.token"
+      );
+
+      if (!group) return bot.sendMessage(chatId, "❌ Group not found.");
+
+      const tokenData = group.tokens.find(
+        (t) => t.token._id.toString() === tokenId
+      );
+      if (!tokenData)
+        return bot.sendMessage(chatId, "❌ Token settings not found.");
+
+      // Toggle buy alerts
+      tokenData.settings.buyAlerts = !tokenData.settings.buyAlerts;
+      await group.save();
+
+      // Update the message dynamically
+      await updateTokenSettingsMessage(chatId, messageId, tokenId);
+    } catch (error) {
+      console.error("Error toggling buy alerts:", error);
+      bot.sendMessage(chatId, "❌ An error occurred. Please try again.");
+    }
+  } else if (data.startsWith("toggle_sellAlerts_")) {
+    const tokenId = data.split("_")[2];
+
+    try {
+      const group = await Group.findOne({ "tokens.token": tokenId }).populate(
+        "tokens.token"
+      );
+
+      if (!group) return bot.sendMessage(chatId, "❌ Group not found.");
+
+      const tokenData = group.tokens.find(
+        (t) => t.token._id.toString() === tokenId
+      );
+      if (!tokenData)
+        return bot.sendMessage(chatId, "❌ Token settings not found.");
+
+      // Toggle sell alerts
+      tokenData.settings.sellAlerts = !tokenData.settings.sellAlerts;
+      await group.save();
+
+      // Update the message dynamically
+      await updateTokenSettingsMessage(chatId, messageId, tokenId);
+    } catch (error) {
+      console.error("Error toggling sell alerts:", error);
+      bot.sendMessage(chatId, "❌ An error occurred. Please try again.");
+    }
+  } else if (data.startsWith("toggle_priceTracking_")) {
+    const tokenId = data.split("_")[2];
+
+    try {
+      const group = await Group.findOne({ "tokens.token": tokenId }).populate(
+        "tokens.token"
+      );
+
+      if (!group) return bot.sendMessage(chatId, "❌ Group not found.");
+
+      const tokenData = group.tokens.find(
+        (t) => t.token._id.toString() === tokenId
+      );
+      if (!tokenData)
+        return bot.sendMessage(chatId, "❌ Token settings not found.");
+
+      // Toggle price tracking
+      tokenData.settings.priceTracking = !tokenData.settings.priceTracking;
+      await group.save();
+
+      // Update the message dynamically
+      await updateTokenSettingsMessage(chatId, messageId, tokenId);
+    } catch (error) {
+      console.error("Error toggling price tracking:", error);
+      bot.sendMessage(chatId, "❌ An error occurred. Please try again.");
+    }
   } else if (data === "cancel") {
     bot.sendMessage(chatId, "❌ Action cancelled.");
+  } else if (data === "cancel_home") {
+    const inlineKeyboard = {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: "➕ Add a Token / Change Token Settings",
+              callback_data: "add_token/change_setting",
+            },
+          ],
+        ],
+      },
+    };
+
+    await bot.sendMessage(
+      chatId,
+      "Welcome to Laddu Buy Bot! 🚀\n\nSelect an option below:"
+    );
+    await bot.sendMessage(chatId, "🔹 Choose an action:", inlineKeyboard);
   }
 
   bot.answerCallbackQuery(callbackQuery.id);

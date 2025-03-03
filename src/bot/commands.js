@@ -98,7 +98,7 @@ bot.onText(/\/start/, async (msg) => {
             [
               {
                 text: "➕ Add a Token / Change Token Settings",
-                callback_data: "add_token",
+                callback_data: "add_token/change_setting",
               },
             ],
           ],

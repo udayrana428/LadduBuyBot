@@ -19,9 +19,4 @@ async function fetchTokenDetails(rpcUrl, tokenAddress) {
   return { name, symbol, decimals };
 }
 
-// Example usage:
-// fetchTokenDetails("https://mainnet.ethereumpow.org", "0xbbfcab3e1a4aba7c1624a93430ad2467c38f9bbb")
-//   .then(console.log)
-//   .catch(console.error);
-
 module.exports = { fetchTokenDetails };

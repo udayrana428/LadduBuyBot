@@ -77,7 +77,7 @@ function connectWebSocket() {
         reconnectAttempts = 0;
 
         // ✅ Subscribe to a specific token's transactions
-        subscribeToTopic(SPECIFIC_TOKEN_TOPIC);
+        // subscribeToTopic(SPECIFIC_TOKEN_TOPIC);
 
         // ✅ Subscribe to transactions for all tokens
         subscribeToTopic(ALL_TOKENS_TOPIC);
@@ -128,6 +128,7 @@ function subscribeToTopic(topic) {
           price: data.tokenPriceInUsd,
           type: data.tradeType, // 'buy' or 'sell'
           timestamp: data.date,
+          marketCap: data.marketCap,
         };
 
         processFinalTransaction(transaction);
@@ -153,6 +154,7 @@ function isValidTransaction(data) {
     typeof data.tokenPriceInEth === "string" &&
     typeof data.maker === "string" &&
     typeof data.tokenName === "string" &&
+    typeof data.marketCap === "string" &&
     ["BUY", "SELL"].includes(data.tradeType)
   );
 }
