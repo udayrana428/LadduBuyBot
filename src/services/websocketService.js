@@ -157,7 +157,7 @@ function isValidTransaction(data) {
     typeof data.tokenPriceInEth === "string" &&
     typeof data.maker === "string" &&
     typeof data.tokenName === "string" &&
-    typeof data.marketCap === "string" &&
+    typeof data.marketCap === "number" &&
     ["BUY", "SELL"].includes(data.tradeType)
   );
 }
