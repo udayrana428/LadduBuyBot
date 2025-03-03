@@ -10,7 +10,9 @@ async function processFinalTransaction(data) {
   const txnValueInUsd = amountOfToken * tokenPriceInUsd;
 
   // 🔍 Step 1: Find the token
-  const token = await Token.findOne({ address: tokenAddress });
+  const token = await Token.findOne({ address: tokenAddress })
+    .select("name symbol chain decimals address") // Ensure token details are included
+    .populate("groups");
 
   if (!token) {
     console.log(`⚠️ Token ${tokenAddress} not found in DB.`);
