@@ -1,4 +1,5 @@
 const bot = require("../bot/bot"); // Assuming this is your bot instance
+const { userState } = require("../bot/callbacks");
 const Group = require("../models/Group");
 
 // Define blockchain explorers for different chains
@@ -6,14 +7,17 @@ const explorers = {
   ethw: {
     explorer: "https://www.oklink.com/ethw",
     chart: "https://powtools.io/pairexplorer",
+    dex: "https://powdex.io/swap",
   },
   eth: {
     explorer: "https://etherscan.io",
     chart: "https://dexscreener.com/ethereum",
+    dex: "https://app.uniswap.org/swap",
   },
   bsc: {
     explorer: "https://bscscan.com",
     chart: "https://dexscreener.com/bsc",
+    dex: "https://pancakeswap.finance/",
   },
 };
 
@@ -34,9 +38,9 @@ function sendTelegramNotification(groupId, transaction, tokenData) {
 
 🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢  
 
-⚽ *$${formatCurrency(
+⚽ *${formatCurrency(
     transaction.tokenPriceInUsd * transaction.amountOfToken
-  )}* (${transaction.amountOfEthW} ETH)  
+  )}* (${transaction.amountOfEthW} ETHW)  
 🎾 *${formatAmount(transaction.amountOfToken)}* ${tokenData.symbol}  
 🥏 *Maker:* [${shortMaker}](${explorer.explorer}/address/${
     transaction.maker
@@ -47,10 +51,13 @@ function sendTelegramNotification(groupId, transaction, tokenData) {
 
 🏈 [TX](${explorer.explorer}/tx/${transaction.txHash}) | 🪀 [Chart](${
     explorer.chart
-  }/${transaction.tokenAddress}) | 🎣 [Buy](#)
+  }/${transaction.tokenAddress}) | 🎣 [Buy](${explorer.dex})
   `;
 
-  bot.sendMessage(groupId, message, { parse_mode: "Markdown" });
+  bot.sendMessage(groupId, message, {
+    parse_mode: "Markdown",
+    disable_web_page_preview: true,
+  });
 }
 
 // Helper function to format currency values
@@ -66,13 +73,20 @@ function formatAmount(amount) {
   return parseFloat(amount).toFixed(2);
 }
 
-const updateTokenSettingsMessage = async (chatId, messageId, tokenId) => {
+const updateTokenSettingsMessage = async (
+  chatId,
+  messageId,
+  tokenId,
+  groupId
+) => {
   try {
-    const group = await Group.findOne({ "tokens.token": tokenId }).populate(
-      "tokens.token"
-    );
+    const group = await Group.findOne({ groupId }).populate("tokens.token");
 
-    if (!group) return bot.sendMessage(chatId, "❌ Group not found.");
+    if (!group)
+      return bot.sendMessage(
+        chatId,
+        "❌ Group not found in updateTokenSettingsMessage."
+      );
 
     const tokenData = group.tokens.find(
       (t) => t.token._id.toString() === tokenId
@@ -83,7 +97,7 @@ const updateTokenSettingsMessage = async (chatId, messageId, tokenId) => {
     const { token, settings } = tokenData;
 
     const settingsMessage =
-      `⚙️ *Settings for ${token.name} (${token.symbol})*:\n\n` +
+      `⚙️ *Settings for ${token.name} (${token.symbol}) in ${group.title}*:\n\n` +
       `Please click on each setting to change it`;
 
     const options = {

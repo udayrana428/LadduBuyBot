@@ -208,7 +208,10 @@ bot.on("message", async (msg) => {
     const { groupId, tokenId, messageId } = userState[userId];
 
     try {
-      const group = await Group.findOne({ groupId, "tokens.token": tokenId });
+      const group = await Group.findOne({
+        groupId: groupId,
+        "tokens.token": tokenId,
+      }); // CHANGES
 
       if (!group) {
         return bot.sendMessage(chatId, "❌ Group or token not found.");
@@ -305,13 +308,13 @@ bot.on("message", async (msg) => {
       // **Update the settings message to reflect the change**
       // **Ensure messageId is correctly passed**
       if (messageId) {
-        await updateTokenSettingsMessage(chatId, messageId, tokenId);
+        await updateTokenSettingsMessage(chatId, messageId, tokenId, groupId);
       } else {
         console.error("❌ messageId is missing, cannot update message.");
       }
 
       // Clear state
-      delete userState[userId];
+      // delete userState[userId];
     } catch (error) {
       console.error("Error updating token settings:", error);
       bot.sendMessage(chatId, "❌ An error occurred. Please try again.");
@@ -376,11 +379,6 @@ bot.on("my_chat_member", async (msg) => {
 });
 
 // 📌 Handle users joining/leaving a group
-
-// bot.on("chat_member", async (msg) => {
-//   console.log("chat_member event triggered", msg);
-//   // Handle your logic here
-// });
 
 bot.on("chat_member", async (msg) => {
   console.log("chat_member event triggered");

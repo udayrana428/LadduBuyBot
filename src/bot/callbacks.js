@@ -87,7 +87,7 @@ bot.on("callback_query", async (callbackQuery) => {
             inline_keyboard: [
               [
                 { text: "✅ Send", callback_data: `confirm_group_${groupId}` },
-                { text: "❌ Cancel", callback_data: "cancel_selection" },
+                { text: "❌ Cancel", callback_data: "cancel_home" },
               ],
             ],
           },
@@ -127,6 +127,8 @@ bot.on("callback_query", async (callbackQuery) => {
     const groupId = data.split("_")[2];
 
     try {
+      // Store the groupId in userState when user starts changing token settings
+      userState[userId] = { groupId };
       const group = await Group.findOne({ groupId }).populate("tokens.token");
 
       if (!group) return bot.sendMessage(chatId, "❌ Group not found.");
@@ -139,7 +141,7 @@ bot.on("callback_query", async (callbackQuery) => {
       const tokenButtons = group.tokens.map(({ token }) => [
         {
           text: `${token.name} (${token.symbol}) on ${token.chain} chain`,
-          callback_data: `edit_token_setting_${token._id}`,
+          callback_data: `edit_token_setting_${token._id}_${groupId}`,
         },
       ]);
 
@@ -156,18 +158,26 @@ bot.on("callback_query", async (callbackQuery) => {
       bot.sendMessage(chatId, "❌ An error occurred. Please try again.");
     }
   } else if (data.startsWith("edit_token_setting_")) {
-    const tokenId = data.split("_")[3];
+    const [, , , tokenId, groupId] = data.split("_"); // Extract both tokenId and groupId
 
     try {
+      // console.log(`Userstate: ${JSON.stringify(userState)}`);
+      // const groupId = userState[userId].groupId;
+
       // Find the group that contains this token
-      const group = await Group.findOne({ "tokens.token": tokenId }).populate(
-        "tokens.token"
-      );
+      const group = await Group.findOne({ groupId }).populate("tokens.token");
 
       if (!group) return bot.sendMessage(chatId, "❌ Group not found.");
 
       // Store the groupId in userState to persist it for later interactions
-      userState[userId] = { ...userState[userId], groupId: group.groupId };
+      // userState[userId] = { ...userState[userId], groupId: group.groupId };
+
+      // IMPORTANT FIX: Store both groupId and tokenId in userState // CHANGES
+      userState[userId] = {
+        groupId: group.groupId,
+        tokenId: tokenId,
+        messageId: messageId,
+      };
 
       // Find the token settings within the group
       const tokenData = group.tokens.find(
@@ -182,7 +192,7 @@ bot.on("callback_query", async (callbackQuery) => {
 
       bot.sendMessage(
         chatId,
-        `⚙️ *Settings for ${token.name} (${token.symbol})*:\n\n` +
+        `⚙️ *Settings for ${token.name} (${token.symbol}) in ${group.title}*:\n\n` + //changes added group.title
           `Please click on each setting to change it`,
         {
           parse_mode: "Markdown",
@@ -191,7 +201,7 @@ bot.on("callback_query", async (callbackQuery) => {
               [
                 {
                   text: `✏ Minimum Buy : ${settings.minBuyValue}`,
-                  callback_data: `set_minBuy_${tokenId}`,
+                  callback_data: `set_minBuy_${tokenId}_${groupId}`,
                 },
               ],
               [
@@ -199,7 +209,7 @@ bot.on("callback_query", async (callbackQuery) => {
                   text: settings.buyAlerts
                     ? "🔴 Disable Buy Alerts"
                     : "🟢 Enable Buy Alerts",
-                  callback_data: `toggle_buyAlerts_${tokenId}`,
+                  callback_data: `toggle_buyAlerts_${tokenId}_${groupId}`,
                 },
               ],
               [
@@ -207,7 +217,7 @@ bot.on("callback_query", async (callbackQuery) => {
                   text: settings.sellAlerts
                     ? "🔴 Disable Sell Alerts"
                     : "🟢 Enable Sell Alerts",
-                  callback_data: `toggle_sellAlerts_${tokenId}`,
+                  callback_data: `toggle_sellAlerts_${tokenId}_${groupId}`,
                 },
               ],
               [
@@ -215,7 +225,7 @@ bot.on("callback_query", async (callbackQuery) => {
                   text: settings.priceTracking
                     ? "🔴 Disable Price Tracking"
                     : "🟢 Enable Price Tracking",
-                  callback_data: `toggle_priceTracking_${tokenId}`,
+                  callback_data: `toggle_priceTracking_${tokenId}_${groupId}`,
                 },
               ],
               [{ text: "❌ Cancel", callback_data: "cancel_home" }],
@@ -228,17 +238,40 @@ bot.on("callback_query", async (callbackQuery) => {
       bot.sendMessage(chatId, "❌ An error occurred. Please try again.");
     }
   } else if (data.startsWith("set_minBuy_")) {
-    const tokenId = data.split("_")[2];
-    const userGroup = userState[userId]?.groupId; // Retrieve user's selected group
+    // const tokenId = data.split("_")[2];
+    const [, , tokenId, groupId] = data.split("_"); // Extract both tokenId and groupId
 
-    if (!userGroup) return bot.sendMessage(chatId, "❌ Group not found.");
+    // IMPORTANT FIX: Make sure we're using the correct group for this token
+    // We need to find the group that contains this token if not already in userState
+    if (!userState[userId] || !userState[userId].groupId) {
+      try {
+        const group = await Group.findOne({ "tokens.token": tokenId });
+        if (!group) return bot.sendMessage(chatId, "❌ Group not found.");
 
-    userState[userId] = {
-      ...userState[userId],
-      tokenId,
-      messageId,
-      waitingForMinBuy: true,
-    };
+        userState[userId] = {
+          groupId: group.groupId,
+          tokenId,
+          messageId,
+          waitingForMinBuy: true,
+        };
+      } catch (error) {
+        console.error("Error finding group for token:", error);
+        return bot.sendMessage(
+          chatId,
+          "❌ An error occurred. Please try again."
+        );
+      }
+    } else {
+      // Update existing state
+      userState[userId] = {
+        ...userState[userId],
+        tokenId,
+        messageId,
+        waitingForMinBuy: true,
+      };
+    }
+
+    console.log(`Current User: ${JSON.stringify(userState)}`);
 
     bot.sendMessage(
       chatId,
@@ -253,12 +286,21 @@ bot.on("callback_query", async (callbackQuery) => {
       }
     );
   } else if (data.startsWith("toggle_buyAlerts_")) {
-    const tokenId = data.split("_")[2];
+    // const tokenId = data.split("_")[2];
+    // const [, , tokenId, groupId] = data.split("_"); // Extract both tokenId and groupId
 
+    // Ensure userState[userId] exists
+    if (
+      !userState[userId] ||
+      !userState[userId].tokenId ||
+      !userState[userId].groupId
+    ) {
+      return bot.sendMessage(chatId, "❌ Invalid request. Please try again.");
+    }
+
+    const { tokenId, groupId } = userState[userId];
     try {
-      const group = await Group.findOne({ "tokens.token": tokenId }).populate(
-        "tokens.token"
-      );
+      const group = await Group.findOne({ groupId }).populate("tokens.token");
 
       if (!group) return bot.sendMessage(chatId, "❌ Group not found.");
 
@@ -273,18 +315,28 @@ bot.on("callback_query", async (callbackQuery) => {
       await group.save();
 
       // Update the message dynamically
-      await updateTokenSettingsMessage(chatId, messageId, tokenId);
+      await updateTokenSettingsMessage(chatId, messageId, tokenId, groupId);
     } catch (error) {
       console.error("Error toggling buy alerts:", error);
       bot.sendMessage(chatId, "❌ An error occurred. Please try again.");
     }
   } else if (data.startsWith("toggle_sellAlerts_")) {
-    const tokenId = data.split("_")[2];
+    // const tokenId = data.split("_")[2];
+    // const [, , tokenId, groupId] = data.split("_"); // Extract both tokenId and groupId
+
+    // Ensure userState[userId] exists
+    if (
+      !userState[userId] ||
+      !userState[userId].tokenId ||
+      !userState[userId].groupId
+    ) {
+      return bot.sendMessage(chatId, "❌ Invalid request. Please try again.");
+    }
+
+    const { tokenId, groupId } = userState[userId];
 
     try {
-      const group = await Group.findOne({ "tokens.token": tokenId }).populate(
-        "tokens.token"
-      );
+      const group = await Group.findOne({ groupId }).populate("tokens.token");
 
       if (!group) return bot.sendMessage(chatId, "❌ Group not found.");
 
@@ -299,18 +351,28 @@ bot.on("callback_query", async (callbackQuery) => {
       await group.save();
 
       // Update the message dynamically
-      await updateTokenSettingsMessage(chatId, messageId, tokenId);
+      await updateTokenSettingsMessage(chatId, messageId, tokenId, groupId);
     } catch (error) {
       console.error("Error toggling sell alerts:", error);
       bot.sendMessage(chatId, "❌ An error occurred. Please try again.");
     }
   } else if (data.startsWith("toggle_priceTracking_")) {
-    const tokenId = data.split("_")[2];
+    // const tokenId = data.split("_")[2];
+    // const [, , tokenId, groupId] = data.split("_"); // Extract both tokenId and groupId
+
+    // Ensure userState[userId] exists
+    if (
+      !userState[userId] ||
+      !userState[userId].tokenId ||
+      !userState[userId].groupId
+    ) {
+      return bot.sendMessage(chatId, "❌ Invalid request. Please try again.");
+    }
+
+    const { tokenId, groupId } = userState[userId];
 
     try {
-      const group = await Group.findOne({ "tokens.token": tokenId }).populate(
-        "tokens.token"
-      );
+      const group = await Group.findOne({ groupId }).populate("tokens.token");
 
       if (!group) return bot.sendMessage(chatId, "❌ Group not found.");
 
@@ -325,7 +387,7 @@ bot.on("callback_query", async (callbackQuery) => {
       await group.save();
 
       // Update the message dynamically
-      await updateTokenSettingsMessage(chatId, messageId, tokenId);
+      await updateTokenSettingsMessage(chatId, messageId, tokenId, groupId);
     } catch (error) {
       console.error("Error toggling price tracking:", error);
       bot.sendMessage(chatId, "❌ An error occurred. Please try again.");
@@ -333,6 +395,8 @@ bot.on("callback_query", async (callbackQuery) => {
   } else if (data === "cancel") {
     bot.sendMessage(chatId, "❌ Action cancelled.");
   } else if (data === "cancel_home") {
+    delete userState[userId];
+
     const inlineKeyboard = {
       reply_markup: {
         inline_keyboard: [
