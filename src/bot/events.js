@@ -5,7 +5,10 @@ const Group = require("../models/Group");
 const { SUPPORTED_CHAINS, userState } = require("./callbacks");
 const { checkTokenOnChain } = require("../services/okLinkServices");
 const Token = require("../models/Token");
-const { updateTokenSettingsMessage } = require("../services/telegramService");
+const {
+  updateTokenSettingsMessage,
+  sendTokenSettingsMessage,
+} = require("../services/telegramService");
 const { uploadToCloudinary } = require("../services/cloudinaryServices");
 
 // 📌 Handle bot being added to a group
@@ -417,73 +420,71 @@ bot.on("message", async (msg) => {
         .sendMessage(chatId, `✅ Minimum Buy Value updated to $${minBuyValue}`)
         .then(() => {
           // After sending confirmation, send the settings message
-          bot.sendMessage(
-            chatId,
-            `⚙️ *Settings for ${token.name} (${token.symbol})*:\n\n` +
-              `Please click on each setting to change it`,
-            {
-              parse_mode: "Markdown",
-              reply_markup: {
-                inline_keyboard: [
-                  [
-                    {
-                      text: `✏ Minimum Buy : ${settings.minBuyValue}`,
-                      callback_data: `set_minBuy_${tokenId}_${groupId}`,
-                    },
-                  ],
-                  [
-                    {
-                      text: "🖼️ Media/Gif",
-                      callback_data: `set_media_${tokenId}_${groupId}`,
-                    },
-                  ],
-                  [
-                    {
-                      text: settings.buyAlerts
-                        ? "🔴 Disable Buy Alerts"
-                        : "🟢 Enable Buy Alerts",
-                      callback_data: `toggle_buyAlerts_${tokenId}_${groupId}`,
-                    },
-                  ],
-                  [
-                    {
-                      text: settings.sellAlerts
-                        ? "🔴 Disable Sell Alerts"
-                        : "🟢 Enable Sell Alerts",
-                      callback_data: `toggle_sellAlerts_${tokenId}_${groupId}`,
-                    },
-                  ],
-                  [
-                    {
-                      text: settings.priceTracking
-                        ? "🔴 Disable Price Tracking"
-                        : "🟢 Enable Price Tracking",
-                      callback_data: `toggle_priceTracking_${tokenId}_${groupId}`,
-                    },
-                  ],
-                  [
-                    {
-                      text: "⚠️ Delete Token",
-                      callback_data: `confirm_delete_token`,
-                    },
-                  ],
-                  [{ text: "❌ Cancel", callback_data: "cancel_home" }],
-                ],
-              },
-            }
-          );
+          sendTokenSettingsMessage(chatId, tokenId, groupId);
         });
 
       // **Update the settings message to reflect the change**
       // **Ensure messageId is correctly passed**
-      if (messageId) {
-        await updateTokenSettingsMessage(chatId, messageId, tokenId, groupId);
-      } else {
-        console.error("❌ messageId is missing, cannot update message.");
-      }
+      // if (messageId) {
+      //   await updateTokenSettingsMessage(chatId, messageId, tokenId, groupId);
+      // } else {
+      //   console.error("❌ messageId is missing, cannot update message.");
+      // }
 
       // Clear state
-      // delete userState[userId];
+      delete userState[userId].waitingForMinBuy;
+    } catch (error) {
+      console.error("Error updating token settings:", error);
+      bot.sendMessage(chatId, "❌ An error occurred. Please try again.");
+    }
+  }
+
+  // For updating the EMOJI
+
+  if (userState[userId] && userState[userId].waitingForEmoji) {
+    const emoji = text;
+    if (!emoji || emoji.length > 2 || emoji.length === 0) {
+      return bot.sendMessage(
+        chatId,
+        "❌ Invalid emoji. Please use a single emoji."
+      );
+    }
+    const { groupId, tokenId, messageId } = userState[userId];
+    try {
+      await Group.updateOne(
+        { groupId, "tokens.token": tokenId },
+        { $set: { "tokens.$.settings.emoji": emoji } }
+      );
+      bot.sendMessage(chatId, `✅ Emoji updated to ${emoji}`);
+      // await updateTokenSettingsMessage(chatId, messageId, tokenId, groupId);
+      sendTokenSettingsMessage(chatId, tokenId, groupId);
+      delete userState[userId].waitingForEmoji;
+    } catch (error) {
+      console.error("Error updating token settings:", error);
+      bot.sendMessage(chatId, "❌ An error occurred. Please try again.");
+    }
+  }
+
+  //For updating the STEPSIZE
+
+  if (userState[userId] && userState[userId].waitingForStepSize) {
+    const stepSize = parseFloat(text);
+    if (isNaN(stepSize) || stepSize <= 0)
+      return bot.sendMessage(
+        chatId,
+        "❌ Invalid number. Please enter a positive number."
+      );
+    const { groupId, tokenId, messageId } = userState[userId];
+
+    try {
+      await Group.updateOne(
+        { groupId, "tokens.token": tokenId },
+        { $set: { "tokens.$.settings.stepSize": stepSize } }
+      );
+      bot.sendMessage(chatId, `✅ Step size updated to ${stepSize}`);
+      // await updateTokenSettingsMessage(chatId, messageId, tokenId, groupId);
+      sendTokenSettingsMessage(chatId, tokenId, groupId);
+      delete userState[userId].waitingForStepSize;
     } catch (error) {
       console.error("Error updating token settings:", error);
       bot.sendMessage(chatId, "❌ An error occurred. Please try again.");
@@ -531,12 +532,13 @@ bot.on("message", async (msg) => {
       bot.sendMessage(chatId, "✅ Media has been successfully updated!");
 
       // Update UI
-      await updateTokenSettingsMessage(
-        chatId,
-        userState[userId].messageId,
-        tokenId,
-        groupId
-      );
+      // await updateTokenSettingsMessage(
+      //   chatId,
+      //   userState[userId].messageId,
+      //   tokenId,
+      //   groupId
+      // );
+      sendTokenSettingsMessage(chatId, tokenId, groupId);
     } catch (error) {
       console.error("Error handling media:", error);
       bot.sendMessage(chatId, "❌ Failed to upload media. Please try again.");

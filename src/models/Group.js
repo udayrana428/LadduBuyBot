@@ -21,7 +21,7 @@ const groupSchema = new mongoose.Schema({
         sellAlerts: { type: Boolean, default: true }, // Enable sell alerts
         priceTracking: { type: Boolean, default: false }, // Track token price
         media: { type: String, default: "" }, // Store media URL here
-        emoji: { type: String, default: "" }, // Store emoji here
+        emoji: { type: String, default: "⭐" }, // Store emoji here
         stepSize: { type: Number, default: 50 }, // Store step size here
       },
     },

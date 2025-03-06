@@ -249,6 +249,18 @@ bot.on("callback_query", async (callbackQuery) => {
               ],
               [
                 {
+                  text: `😊 Emoji : ${settings.emoji}`,
+                  callback_data: `set_emoji`,
+                },
+              ],
+              [
+                {
+                  text: `🔁 Step : ${settings.stepSize}`,
+                  callback_data: `set_stepSize`,
+                },
+              ],
+              [
+                {
                   text: "🖼️ Media/Gif",
                   callback_data: `set_media`,
                 },
@@ -280,7 +292,7 @@ bot.on("callback_query", async (callbackQuery) => {
               [
                 {
                   text: "⚠️ Delete Token",
-                  callback_data: `confirm_delete_token`,
+                  callback_data: `confirm_delete_token_${tokenId}_${groupId}`,
                 },
               ],
               [{ text: "❌ Cancel", callback_data: "cancel_home" }],
@@ -340,6 +352,46 @@ bot.on("callback_query", async (callbackQuery) => {
         },
       }
     );
+  } else if (data === "set_emoji") {
+    // Ensure userState[userId] exists
+    if (
+      !userState[userId] ||
+      !userState[userId].tokenId ||
+      !userState[userId].groupId
+    ) {
+      return bot.sendMessage(chatId, "❌ Invalid request. Please try again.");
+    }
+
+    userState[userId].waitingForEmoji = true;
+
+    bot.sendMessage(
+      chatId,
+      "🎭 Please send the new emoji to be used for alerts.",
+      {
+        reply_markup: {
+          force_reply: true,
+          input_field_placeholder: "Send emoji...",
+        },
+      }
+    );
+  } else if (data === "set_stepSize") {
+    // Ensure userState[userId] exists
+    if (
+      !userState[userId] ||
+      !userState[userId].tokenId ||
+      !userState[userId].groupId
+    ) {
+      return bot.sendMessage(chatId, "❌ Invalid request. Please try again.");
+    }
+
+    userState[userId].waitingForStepSize = true;
+
+    bot.sendMessage(chatId, "📏 Please enter the new step size (Number).", {
+      reply_markup: {
+        force_reply: true,
+        input_field_placeholder: "Enter step size...",
+      },
+    });
   } else if (data === "set_media") {
     if (
       !userState[userId] ||
@@ -470,7 +522,9 @@ bot.on("callback_query", async (callbackQuery) => {
       console.error("Error toggling price tracking:", error);
       bot.sendMessage(chatId, "❌ An error occurred. Please try again.");
     }
-  } else if (data.startsWith("confirm_delete_token")) {
+  } else if (data.startsWith("confirm_delete_token_")) {
+    const [, , , tokenId, groupId] = data.split("_"); // Extract both tokenId and groupId
+
     // Send confirmation message
     bot.sendMessage(
       chatId,
@@ -485,13 +539,17 @@ bot.on("callback_query", async (callbackQuery) => {
                 callback_data: `delete_token_`,
               },
             ],
-            [{ text: "❌ Cancel", callback_data: "cancel_home" }],
+            [
+              {
+                text: "❌ Cancel",
+                callback_data: `edit_token_setting_${tokenId}_${groupId}`,
+              },
+            ],
           ],
         },
       }
     );
   } else if (data.startsWith("delete_token_")) {
-    // Ensure userState[userId] exists
     if (
       !userState[userId] ||
       !userState[userId].tokenId ||
@@ -521,6 +579,13 @@ bot.on("callback_query", async (callbackQuery) => {
       group.tokens.splice(tokenIndex, 1);
       await group.save();
 
+      // ✅ Also remove the group reference from the Token's `groups` array
+      await Token.findOneAndUpdate(
+        { _id: tokenId },
+        { $pull: { groups: group._id } }, // Remove the group ID from token's `groups`
+        { new: true }
+      );
+
       // Send confirmation message
       bot.sendMessage(
         chatId,
@@ -540,9 +605,6 @@ bot.on("callback_query", async (callbackQuery) => {
           },
         }
       );
-
-      // Update the settings message dynamically
-      // await updateTokenSettingsMessage(chatId, messageId, tokenId, groupId);
     } catch (error) {
       console.error("Error deleting token:", error);
       bot.sendMessage(chatId, "❌ An error occurred. Please try again.");

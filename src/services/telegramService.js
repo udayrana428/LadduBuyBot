@@ -171,8 +171,20 @@ const updateTokenSettingsMessage = async (
           ],
           [
             {
+              text: `😊 Emoji : ${settings.emoji}`,
+              callback_data: `set_emoji`,
+            },
+          ],
+          [
+            {
+              text: `🔁 Step : ${settings.stepSize}`,
+              callback_data: `set_stepSize`,
+            },
+          ],
+          [
+            {
               text: "🖼️ Media/Gif",
-              callback_data: `set_media_${tokenId}_${groupId}`,
+              callback_data: `set_media`,
             },
           ],
           [
@@ -202,7 +214,7 @@ const updateTokenSettingsMessage = async (
           [
             {
               text: "⚠️ Delete Token",
-              callback_data: `delete_token_${tokenId}_${groupId}`,
+              callback_data: `confirm_delete_token_${tokenId}_${groupId}`,
             },
           ],
           [{ text: "❌ Cancel", callback_data: "cancel_home" }],
@@ -225,4 +237,102 @@ const updateTokenSettingsMessage = async (
   }
 };
 
-module.exports = { sendTelegramNotification, updateTokenSettingsMessage };
+async function sendTokenSettingsMessage(chatId, tokenId, groupId) {
+  try {
+    const group = await Group.findOne({
+      groupId,
+      "tokens.token": tokenId,
+    }).populate("tokens.token");
+    if (!group) {
+      return bot.sendMessage(chatId, "❌ Group or token not found.");
+    }
+
+    const tokenData = group.tokens.find(
+      (t) => t.token._id.toString() === tokenId
+    );
+    if (!tokenData) {
+      return bot.sendMessage(chatId, "❌ Token settings not found.");
+    }
+
+    const { token, settings } = tokenData;
+    bot.sendMessage(
+      chatId,
+      `⚙️ *Settings for ${token.name} (${token.symbol}) in ${group.title}*:\n\n` +
+        `Please click on each setting to change it`,
+      {
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: `✏ Minimum Buy : ${settings.minBuyValue}`,
+                callback_data: `set_minBuy_${tokenId}_${groupId}`,
+              },
+            ],
+            [
+              {
+                text: `😊 Emoji : ${settings.emoji}`,
+                callback_data: `set_emoji`,
+              },
+            ],
+            [
+              {
+                text: `🔁 Step : ${settings.stepSize}`,
+                callback_data: `set_stepSize`,
+              },
+            ],
+            [
+              {
+                text: "🖼️ Media/Gif",
+                callback_data: `set_media`,
+              },
+            ],
+            [
+              {
+                text: settings.buyAlerts
+                  ? "🔴 Disable Buy Alerts"
+                  : "🟢 Enable Buy Alerts",
+                callback_data: `toggle_buyAlerts_${tokenId}_${groupId}`,
+              },
+            ],
+            [
+              {
+                text: settings.sellAlerts
+                  ? "🔴 Disable Sell Alerts"
+                  : "🟢 Enable Sell Alerts",
+                callback_data: `toggle_sellAlerts_${tokenId}_${groupId}`,
+              },
+            ],
+            [
+              {
+                text: settings.priceTracking
+                  ? "🔴 Disable Price Tracking"
+                  : "🟢 Enable Price Tracking",
+                callback_data: `toggle_priceTracking_${tokenId}_${groupId}`,
+              },
+            ],
+            [
+              {
+                text: "⚠️ Delete Token",
+                callback_data: `confirm_delete_token_${tokenId}_${groupId}`,
+              },
+            ],
+            [{ text: "❌ Cancel", callback_data: "cancel_home" }],
+          ],
+        },
+      }
+    );
+  } catch (error) {
+    console.error("Error sending token settings message:", error);
+    bot.sendMessage(
+      chatId,
+      "❌ An error occurred while fetching token settings."
+    );
+  }
+}
+
+module.exports = {
+  sendTelegramNotification,
+  updateTokenSettingsMessage,
+  sendTokenSettingsMessage,
+};
