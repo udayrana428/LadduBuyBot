@@ -121,7 +121,7 @@ function formatAmount(amount) {
 function generateEmojiNotification(transactionAmount, groupSettings) {
   const { stepSize = 50, emoji = "💀" } = groupSettings;
 
-  if (!emoji || transactionAmount < stepSize) {
+  if (!emoji) {
     return ""; // No emoji if below step size
   }
 
