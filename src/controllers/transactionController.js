@@ -23,18 +23,20 @@ async function processFinalTransaction(data) {
   const groups = token.groups;
 
   for (const group of groups) {
-    const tokenSettings = group.tokens.find(
+    const groupToken = group.tokens.find(
       (t) => t.token.toString() === token._id.toString()
     );
-    if (!tokenSettings) continue;
+    if (!groupToken) continue;
 
-    const { minBuyValue, buyAlerts, sellAlerts } = tokenSettings.settings;
+    const { minBuyValue, buyAlerts, sellAlerts } = groupToken.settings;
+
+    const tokenSettings = groupToken.settings;
 
     if (
       (type === "BUY" && buyAlerts && txnValueInUsd >= minBuyValue) ||
       (type === "SELL" && sellAlerts)
     ) {
-      sendTelegramNotification(group.groupId, data, token);
+      sendTelegramNotification(group.groupId, data, token, tokenSettings);
     }
   }
 }

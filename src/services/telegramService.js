@@ -21,7 +21,12 @@ const explorers = {
   },
 };
 
-function sendTelegramNotification(groupId, transaction, tokenData) {
+function sendTelegramNotification(
+  groupId,
+  transaction,
+  tokenData,
+  tokenSettings
+) {
   const chain = tokenData.chain.toLowerCase(); // Ensure lowercase chain name
   const explorer = explorers[chain] || explorers["ethw"]; // Default to ETHW if not found
 
@@ -33,28 +38,57 @@ function sendTelegramNotification(groupId, transaction, tokenData) {
     ? `${transaction.maker.slice(0, 6)}..${transaction.maker.slice(-4)}`
     : "Unknown";
 
+  //   const message = `
+  // 🚀 *${transaction.tokenName} ${transaction.type.toUpperCase()}!*
+
+  // 🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢
+
+  // ⚽ *${formatCurrency(
+  //     transaction.tokenPriceInUsd * transaction.amountOfToken
+  //   )}* (${transaction.amountOfEthW} ETHW)
+  // 🎾 *${formatAmount(transaction.amountOfToken)}* ${tokenData.symbol}
+  // 🥏 *Maker:* [${shortMaker}](${explorer.explorer}/address/${
+  //     transaction.maker
+  //   }) 🆕
+
+  // 🏀 *Price:* $${transaction.tokenPriceInUsd}
+  // 🥎 *Market Cap:* $${transaction.marketCap}
+
+  // 🏈 [TX](${explorer.explorer}/tx/${transaction.txHash}) | 🪀 [Chart](${
+  //     explorer.chart
+  //   }/${transaction.tokenAddress}) | 🎣 [Buy](${explorer.dex})
+  //   `;
+
   const message = `
-🚀 *${transaction.tokenName} ${transaction.type.toUpperCase()}!*  
+🚀 *${transaction.tokenName} ${transaction.type.toUpperCase()}*  
 
-🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢  
-
-⚽ *${formatCurrency(
+📌 **Transaction Details:**  
+💰 *Amount (USD):* ${formatCurrency(
     transaction.tokenPriceInUsd * transaction.amountOfToken
-  )}* (${transaction.amountOfEthW} ETHW)  
-🎾 *${formatAmount(transaction.amountOfToken)}* ${tokenData.symbol}  
-🥏 *Maker:* [${shortMaker}](${explorer.explorer}/address/${
-    transaction.maker
-  }) 🆕  
+  )} (${transaction.amountOfEthW} ETHW)  
+🔹 *Token Amount:* ${formatAmount(transaction.amountOfToken)} ${
+    tokenData.symbol
+  }  
+🛠 *Maker:* [${shortMaker}](${explorer.explorer}/address/${transaction.maker})  
 
-🏀 *Price:* $${transaction.tokenPriceInUsd}  
-🥎 *Market Cap:* $${transaction.marketCap}  
+📊 **Market Insights:**  
+💲 *Price per ${tokenData.symbol}:* $${transaction.tokenPriceInUsd}  
+🏦 *Market Cap:* $${transaction.marketCap}  
 
-🏈 [TX](${explorer.explorer}/tx/${transaction.txHash}) | 🪀 [Chart](${
+🔗 **Quick Links:**  
+🔍 [Transaction](${explorer.explorer}/tx/${transaction.txHash}) | 📈 [Chart](${
     explorer.chart
-  }/${transaction.tokenAddress}) | 🎣 [Buy](${explorer.dex})
-  `;
+  }/${transaction.tokenAddress}) | 🛒 [Buy Now](${explorer.dex})  
+`;
 
-  bot.sendMessage(groupId, message, {
+  // bot.sendMessage(groupId, message, {
+  //   parse_mode: "Markdown",
+  //   disable_web_page_preview: true,
+  // });
+
+  const imgageUrl = tokenSettings.media ? tokenSettings.media : "";
+  bot.sendPhoto(groupId, imgageUrl, {
+    caption: message,
     parse_mode: "Markdown",
     disable_web_page_preview: true,
   });
@@ -107,7 +141,13 @@ const updateTokenSettingsMessage = async (
           [
             {
               text: `✏ Minimum Buy : ${settings.minBuyValue}`,
-              callback_data: `set_minBuy_${tokenId}`,
+              callback_data: `set_minBuy_${tokenId}_${groupId}`,
+            },
+          ],
+          [
+            {
+              text: "🖼️ Media/Gif",
+              callback_data: `set_media_${tokenId}_${groupId}`,
             },
           ],
           [
@@ -115,7 +155,7 @@ const updateTokenSettingsMessage = async (
               text: settings.buyAlerts
                 ? "🔴 Disable Buy Alerts"
                 : "🟢 Enable Buy Alerts",
-              callback_data: `toggle_buyAlerts_${tokenId}`,
+              callback_data: `toggle_buyAlerts_${tokenId}_${groupId}`,
             },
           ],
           [
@@ -123,7 +163,7 @@ const updateTokenSettingsMessage = async (
               text: settings.sellAlerts
                 ? "🔴 Disable Sell Alerts"
                 : "🟢 Enable Sell Alerts",
-              callback_data: `toggle_sellAlerts_${tokenId}`,
+              callback_data: `toggle_sellAlerts_${tokenId}_${groupId}`,
             },
           ],
           [
@@ -131,7 +171,13 @@ const updateTokenSettingsMessage = async (
               text: settings.priceTracking
                 ? "🔴 Disable Price Tracking"
                 : "🟢 Enable Price Tracking",
-              callback_data: `toggle_priceTracking_${tokenId}`,
+              callback_data: `toggle_priceTracking_${tokenId}_${groupId}`,
+            },
+          ],
+          [
+            {
+              text: "⚠️ Delete Token",
+              callback_data: `delete_token_${tokenId}_${groupId}`,
             },
           ],
           [{ text: "❌ Cancel", callback_data: "cancel_home" }],

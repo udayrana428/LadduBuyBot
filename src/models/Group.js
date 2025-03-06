@@ -20,6 +20,7 @@ const groupSchema = new mongoose.Schema({
         buyAlerts: { type: Boolean, default: true }, // Enable buy alerts
         sellAlerts: { type: Boolean, default: true }, // Enable sell alerts
         priceTracking: { type: Boolean, default: false }, // Track token price
+        media: { type: String, default: "" }, // Store media URL here
       },
     },
   ],

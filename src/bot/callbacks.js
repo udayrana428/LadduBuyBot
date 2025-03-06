@@ -26,7 +26,33 @@ bot.on("callback_query", async (callbackQuery) => {
   if (data === "add_token/change_setting") {
     const replyKeyboard = {
       reply_markup: {
-        keyboard: [[{ text: "📌 Click Here to Select Your Group" }]],
+        // keyboard: [[{ text: "📌 Click Here to Select Your Group" }]],
+        keyboard: [
+          [
+            {
+              text: "📌 Select a Group",
+              request_chat: {
+                request_id: 1, // Unique ID for tracking requests
+                chat_is_channel: false, // Set to true if selecting channels
+                user_administrator_rights: {
+                  can_manage_chat: true, // Ensures user is an admin
+                  can_post_messages: true,
+                  can_invite_users: true,
+                  can_delete_messages: true,
+                  can_change_info: true,
+                },
+                bot_administrator_rights: {
+                  can_manage_chat: true,
+                  can_post_messages: true,
+                  can_invite_users: true,
+                  can_delete_messages: true,
+                  can_change_info: true,
+                },
+                bot_is_member: false, // Setting this to false ensures "Create a New Group" option appears
+              },
+            },
+          ],
+        ],
         resize_keyboard: true,
         one_time_keyboard: true,
       },
@@ -134,7 +160,24 @@ bot.on("callback_query", async (callbackQuery) => {
       if (!group) return bot.sendMessage(chatId, "❌ Group not found.");
 
       if (!group.tokens || group.tokens.length === 0) {
-        return bot.sendMessage(chatId, "❌ No tokens found for this group.");
+        return bot.sendMessage(
+          chatId,
+          `You have not loaded any tokens in ${group.title} - please add a token first `,
+          {
+            parse_mode: "Markdown",
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  {
+                    text: "➕ Add a New Token",
+                    callback_data: `new_token_${groupId}`,
+                  },
+                ],
+                [{ text: "❌ Cancel", callback_data: "cancel_home" }],
+              ],
+            },
+          }
+        );
       }
 
       // Create inline keyboard buttons for each token
@@ -206,6 +249,12 @@ bot.on("callback_query", async (callbackQuery) => {
               ],
               [
                 {
+                  text: "🖼️ Media/Gif",
+                  callback_data: `set_media`,
+                },
+              ],
+              [
+                {
                   text: settings.buyAlerts
                     ? "🔴 Disable Buy Alerts"
                     : "🟢 Enable Buy Alerts",
@@ -226,6 +275,12 @@ bot.on("callback_query", async (callbackQuery) => {
                     ? "🔴 Disable Price Tracking"
                     : "🟢 Enable Price Tracking",
                   callback_data: `toggle_priceTracking_${tokenId}_${groupId}`,
+                },
+              ],
+              [
+                {
+                  text: "⚠️ Delete Token",
+                  callback_data: `confirm_delete_token`,
                 },
               ],
               [{ text: "❌ Cancel", callback_data: "cancel_home" }],
@@ -282,6 +337,29 @@ bot.on("callback_query", async (callbackQuery) => {
         reply_markup: {
           force_reply: true,
           input_field_placeholder: "Put new minimum buy value...",
+        },
+      }
+    );
+  } else if (data === "set_media") {
+    if (
+      !userState[userId] ||
+      !userState[userId].tokenId ||
+      !userState[userId].groupId
+    ) {
+      return bot.sendMessage(chatId, "❌ Invalid request. Please try again.");
+    }
+
+    userState[userId].waitingForMedia = true;
+
+    bot.sendMessage(
+      chatId,
+      "📸 Please send an image, gif, or media file.\n\n" +
+        "🔹 Supported formats: JPG, PNG, GIF, MP4.\n" +
+        "🔹 The bot will store and use this media for alerts.",
+      {
+        reply_markup: {
+          force_reply: true,
+          input_field_placeholder: "Upload an image/gif...",
         },
       }
     );
@@ -390,6 +468,83 @@ bot.on("callback_query", async (callbackQuery) => {
       await updateTokenSettingsMessage(chatId, messageId, tokenId, groupId);
     } catch (error) {
       console.error("Error toggling price tracking:", error);
+      bot.sendMessage(chatId, "❌ An error occurred. Please try again.");
+    }
+  } else if (data.startsWith("confirm_delete_token")) {
+    // Send confirmation message
+    bot.sendMessage(
+      chatId,
+      `Are you sure you want to delete token from this group?.`,
+      {
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: "✅ DELETE Token",
+                callback_data: `delete_token_`,
+              },
+            ],
+            [{ text: "❌ Cancel", callback_data: "cancel_home" }],
+          ],
+        },
+      }
+    );
+  } else if (data.startsWith("delete_token_")) {
+    // Ensure userState[userId] exists
+    if (
+      !userState[userId] ||
+      !userState[userId].tokenId ||
+      !userState[userId].groupId
+    ) {
+      return bot.sendMessage(chatId, "❌ Invalid request. Please try again.");
+    }
+
+    const { tokenId, groupId } = userState[userId];
+
+    try {
+      // Find the group in the database
+      const group = await Group.findOne({ groupId });
+
+      if (!group) return bot.sendMessage(chatId, "❌ Group not found.");
+
+      // Check if the token exists in the group
+      const tokenIndex = group.tokens.findIndex(
+        (t) => t.token.toString() === tokenId
+      );
+
+      if (tokenIndex === -1) {
+        return bot.sendMessage(chatId, "❌ Token not found in this group.");
+      }
+
+      // Remove the token from the group's token list
+      group.tokens.splice(tokenIndex, 1);
+      await group.save();
+
+      // Send confirmation message
+      bot.sendMessage(
+        chatId,
+        `✅ Token has been successfully removed from *${group.title}*.`,
+        {
+          parse_mode: "Markdown",
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: "Go back to Tokens List",
+                  callback_data: `change_token_${groupId}`,
+                },
+              ],
+              [{ text: "❌ Cancel", callback_data: "cancel_home" }],
+            ],
+          },
+        }
+      );
+
+      // Update the settings message dynamically
+      // await updateTokenSettingsMessage(chatId, messageId, tokenId, groupId);
+    } catch (error) {
+      console.error("Error deleting token:", error);
       bot.sendMessage(chatId, "❌ An error occurred. Please try again.");
     }
   } else if (data === "cancel") {

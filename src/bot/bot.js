@@ -45,6 +45,7 @@ async function updateWebhook() {
         "my_chat_member",
         "chat_member",
         "callback_query",
+        "chat_shared",
       ],
     }
   );

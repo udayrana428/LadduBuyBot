@@ -6,6 +6,7 @@ const { SUPPORTED_CHAINS, userState } = require("./callbacks");
 const { checkTokenOnChain } = require("../services/okLinkServices");
 const Token = require("../models/Token");
 const { updateTokenSettingsMessage } = require("../services/telegramService");
+const { uploadToCloudinary } = require("../services/cloudinaryServices");
 
 // 📌 Handle bot being added to a group
 bot.on("message", async (msg) => {
@@ -16,6 +17,146 @@ bot.on("message", async (msg) => {
       msg.chat.id,
       "🚀 Thank you for adding me to your group! To function properly, please make me an admin. Once done, use /start to begin."
     );
+  }
+
+  // Check if the message contains chat_shared
+  if (msg.chat_shared && msg.chat_shared.chat_id) {
+    const groupId = msg.chat_shared.chat_id; // Extract shared group ID
+    const chatId = msg.chat.id; // User who shared the group
+    const userId = msg.from.id;
+    const username = msg.from.username || msg.from.first_name;
+
+    try {
+      let user = await User.findOne({ userId });
+      if (!user) {
+        user = new User({
+          userId,
+          username,
+          firstName: msg.from.first_name,
+          lastName: msg.from.last_name || "",
+          adminGroups: [],
+        });
+        await user.save();
+      }
+
+      let group = await Group.findOne({ groupId });
+
+      if (!group) {
+        // Fetch group details from Telegram
+        const groupInfo = await bot.getChat(groupId);
+        const admins = await bot.getChatAdministrators(groupId);
+        const isUserAdmin = admins.some((admin) => admin.user.id === userId);
+        const isBotAdmin = admins.some(
+          (admin) => admin.user.id === bot.botInfo.id
+        );
+
+        if (!isBotAdmin) {
+          return bot.sendMessage(
+            chatId,
+            "⚠️ I need to be an admin in the shared group to function properly. Please grant me admin permissions."
+          );
+        }
+
+        // Create a new group entry
+        group = new Group({
+          groupId,
+          title: groupInfo.title,
+          owner: isUserAdmin ? user._id : null,
+          admins: isUserAdmin ? [user._id] : [],
+          members: !isUserAdmin ? [user._id] : [],
+        });
+        await group.save();
+
+        bot.sendMessage(
+          chatId,
+          `✅ *${groupInfo.title}* has been registered successfully! ${
+            isUserAdmin ? "You have admin rights." : "You are a member."
+          }`,
+          { parse_mode: "Markdown" }
+        );
+      } else {
+        // Update existing group details
+        const admins = await bot.getChatAdministrators(groupId);
+        const isUserAdmin = admins.some((admin) => admin.user.id === userId);
+
+        if (isUserAdmin && !group.admins.includes(user._id)) {
+          group.admins.push(user._id);
+          await group.save();
+          bot.sendMessage(chatId, `✅ ${username}, you are now an admin.`);
+        } else if (!isUserAdmin && !group.members.includes(user._id)) {
+          group.members.push(user._id);
+          await group.save();
+          bot.sendMessage(
+            chatId,
+            `✅ ${username}, you have been added as a member.`
+          );
+        }
+      }
+
+      // Update user's adminGroups
+      if (group.admins.includes(user._id)) {
+        if (!Array.isArray(user.adminGroups)) {
+          user.adminGroups = [];
+        }
+        if (!user.adminGroups.includes(group._id.toString())) {
+          user.adminGroups.push(group._id);
+          await user.save();
+        }
+      }
+
+      const imgageUrl =
+        "https://res.cloudinary.com/dbtsrjssc/image/upload/v1740042844/VRCPlastoMould/career-img-removebg-preview_ppwopt.webp";
+
+      const message = `
+🚀 *Ethereum (ETH) BUY*  
+
+📌 **Transaction Details:**  
+💰 *Amount (USD):* $1,250 (5.2 ETHW)  
+🔹 *Token Amount:* 3.5 ETH  
+🛠 *Maker:* [0xA1B2..F3E4](https://explorer.ethw/0xA1B2F3E4)  
+
+📊 **Market Insights:**  
+💲 *Price per ETH:* $357.14  
+🏦 *Market Cap:* $420M  
+
+🔗 **Quick Links:**  
+🔍 [Transaction](https://explorer.ethw/tx/0x1234ABCD5678) | 📈 [Chart](https://chart.ethw/0xETH1234) | 🛒 [Buy Now](https://dex.ethw)  
+`;
+
+      bot.sendPhoto(chatId, imgageUrl, {
+        caption: message,
+        parse_mode: "Markdown",
+        disable_web_page_preview: true,
+      });
+      // Send inline keyboard for group actions
+      bot.sendMessage(
+        chatId,
+        `What are you wanting to do for *${group.title}* today?`,
+        {
+          parse_mode: "Markdown",
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: "➕ Add a New Token",
+                  callback_data: `new_token_${groupId}`,
+                },
+              ],
+              [
+                {
+                  text: "⚙ Change Token Settings",
+                  callback_data: `change_token_${groupId}`,
+                },
+              ],
+              [{ text: "❌ Cancel", callback_data: "cancel_home" }],
+            ],
+          },
+        }
+      );
+    } catch (error) {
+      console.error("Error processing shared group:", error);
+      bot.sendMessage(chatId, "❌ An error occurred. Please try again.");
+    }
   }
 
   // Handle "📌 Click Here to Select Your Group"
@@ -72,6 +213,7 @@ bot.on("message", async (msg) => {
     }
   }
 
+  // FOR ADDING THE TOKEN ADDRESS
   const text = msg.text;
 
   if (SUPPORTED_CHAINS.includes(text) && userState[userId]?.groupId) {
@@ -149,9 +291,23 @@ bot.on("message", async (msg) => {
         console.log(
           "⚠ Token already exists in this group. Skipping duplicate entry."
         );
-        bot.sendMessage(
+        return bot.sendMessage(
           chatId,
-          "⚠️ Token already exists in this group. Skipping duplicate entry."
+          "⚠️ Token already exists in this group. Skipping duplicate entry.",
+          {
+            parse_mode: "Markdown",
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  {
+                    text: "➕ Add Another Token",
+                    callback_data: `new_token_${groupId}`,
+                  },
+                  { text: "❌ Cancel", callback_data: "cancel_home" },
+                ],
+              ],
+            },
+          }
         );
       }
 
@@ -175,7 +331,7 @@ bot.on("message", async (msg) => {
                   text: "➕ Add Another Token",
                   callback_data: `new_token_${groupId}`,
                 },
-                { text: "✅ Done", callback_data: "cancel" },
+                { text: "❌ Cancel", callback_data: "cancel_home" },
               ],
             ],
           },
@@ -270,8 +426,14 @@ bot.on("message", async (msg) => {
                 inline_keyboard: [
                   [
                     {
-                      text: `✏ Minimum Buy : ${minBuyValue}`, // Updated value
-                      callback_data: `set_minBuy_${tokenId}`,
+                      text: `✏ Minimum Buy : ${settings.minBuyValue}`,
+                      callback_data: `set_minBuy_${tokenId}_${groupId}`,
+                    },
+                  ],
+                  [
+                    {
+                      text: "🖼️ Media/Gif",
+                      callback_data: `set_media_${tokenId}_${groupId}`,
                     },
                   ],
                   [
@@ -279,7 +441,7 @@ bot.on("message", async (msg) => {
                       text: settings.buyAlerts
                         ? "🔴 Disable Buy Alerts"
                         : "🟢 Enable Buy Alerts",
-                      callback_data: `toggle_buyAlerts_${tokenId}`,
+                      callback_data: `toggle_buyAlerts_${tokenId}_${groupId}`,
                     },
                   ],
                   [
@@ -287,7 +449,7 @@ bot.on("message", async (msg) => {
                       text: settings.sellAlerts
                         ? "🔴 Disable Sell Alerts"
                         : "🟢 Enable Sell Alerts",
-                      callback_data: `toggle_sellAlerts_${tokenId}`,
+                      callback_data: `toggle_sellAlerts_${tokenId}_${groupId}`,
                     },
                   ],
                   [
@@ -295,7 +457,13 @@ bot.on("message", async (msg) => {
                       text: settings.priceTracking
                         ? "🔴 Disable Price Tracking"
                         : "🟢 Enable Price Tracking",
-                      callback_data: `toggle_priceTracking_${tokenId}`,
+                      callback_data: `toggle_priceTracking_${tokenId}_${groupId}`,
+                    },
+                  ],
+                  [
+                    {
+                      text: "⚠️ Delete Token",
+                      callback_data: `confirm_delete_token`,
                     },
                   ],
                   [{ text: "❌ Cancel", callback_data: "cancel_home" }],
@@ -318,6 +486,59 @@ bot.on("message", async (msg) => {
     } catch (error) {
       console.error("Error updating token settings:", error);
       bot.sendMessage(chatId, "❌ An error occurred. Please try again.");
+    }
+  }
+
+  // FOR UPLOADING THE MEDIA
+
+  if (userState[userId] && userState[userId].waitingForMedia) {
+    delete userState[userId].waitingForMedia; // Reset state
+
+    const { tokenId, groupId } = userState[userId];
+
+    try {
+      let fileId;
+
+      if (msg.photo) {
+        fileId = msg.photo[msg.photo.length - 1].file_id; // Get the highest resolution photo
+      } else if (msg.video) {
+        fileId = msg.video.file_id;
+      } else if (msg.animation) {
+        fileId = msg.animation.file_id; // GIFs are treated as animations
+      } else {
+        return bot.sendMessage(
+          chatId,
+          "❌ Please send a valid image, GIF, or video."
+        );
+      }
+
+      // Get file path from Telegram API
+      const file = await bot.getFile(fileId);
+      const fileUrl = `https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN}/${file.file_path}`;
+
+      // Upload file to Cloudinary (or store Telegram URL if using direct linking)
+      // console.log("before uploading to cloudinary");
+      const uploadedUrl = await uploadToCloudinary(fileUrl);
+      // console.log("after uploading to cloudinary");
+
+      // Update database
+      await Group.findOneAndUpdate(
+        { groupId, "tokens.token": tokenId },
+        { $set: { "tokens.$.settings.media": uploadedUrl } }
+      );
+
+      bot.sendMessage(chatId, "✅ Media has been successfully updated!");
+
+      // Update UI
+      await updateTokenSettingsMessage(
+        chatId,
+        userState[userId].messageId,
+        tokenId,
+        groupId
+      );
+    } catch (error) {
+      console.error("Error handling media:", error);
+      bot.sendMessage(chatId, "❌ Failed to upload media. Please try again.");
     }
   }
 });
