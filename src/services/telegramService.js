@@ -38,6 +38,15 @@ function sendTelegramNotification(
     ? `${transaction.maker.slice(0, 6)}..${transaction.maker.slice(-4)}`
     : "Unknown";
 
+  const totalAmountUSD = formatCurrency(
+    transaction.tokenPriceInUsd * transaction.amountOfToken
+  );
+
+  const displayEmojis = generateEmojiNotification(
+    totalAmountUSD,
+    tokenSettings
+  );
+
   //   const message = `
   // 🚀 *${transaction.tokenName} ${transaction.type.toUpperCase()}!*
 
@@ -61,6 +70,8 @@ function sendTelegramNotification(
 
   const message = `
 🚀 *${transaction.tokenName} ${transaction.type.toUpperCase()}*  
+
+${displayEmojis}
 
 📌 **Transaction Details:**  
 💰 *Amount (USD):* ${formatCurrency(
@@ -105,6 +116,20 @@ function formatAmount(amount) {
     return `${(parseFloat(amount) / 1e6).toFixed(2)}M`;
   }
   return parseFloat(amount).toFixed(2);
+}
+
+function generateEmojiNotification(transactionAmount, groupSettings) {
+  const { stepSize = 50, emoji = "💀" } = groupSettings;
+
+  if (!emoji || transactionAmount < stepSize) {
+    return ""; // No emoji if below step size
+  }
+
+  // Calculate the number of emojis based on step size
+  const emojiCount = Math.ceil(transactionAmount / stepSize);
+
+  // Generate the emoji string
+  return emoji.repeat(emojiCount);
 }
 
 const updateTokenSettingsMessage = async (
