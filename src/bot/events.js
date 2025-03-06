@@ -104,30 +104,31 @@ bot.on("message", async (msg) => {
         }
       }
 
-      const imgageUrl =
-        "https://res.cloudinary.com/dbtsrjssc/image/upload/v1740042844/VRCPlastoMould/career-img-removebg-preview_ppwopt.webp";
+      //       const imgageUrl =
+      //         "https://res.cloudinary.com/dbtsrjssc/image/upload/v1740042844/VRCPlastoMould/career-img-removebg-preview_ppwopt.webp";
 
-      const message = `
-🚀 *Ethereum (ETH) BUY*  
+      //       const message = `
+      // 🚀 *Ethereum (ETH) BUY*
 
-📌 **Transaction Details:**  
-💰 *Amount (USD):* $1,250 (5.2 ETHW)  
-🔹 *Token Amount:* 3.5 ETH  
-🛠 *Maker:* [0xA1B2..F3E4](https://explorer.ethw/0xA1B2F3E4)  
+      // 📌 **Transaction Details:**
+      // 💰 *Amount (USD):* $1,250 (5.2 ETHW)
+      // 🔹 *Token Amount:* 3.5 ETH
+      // 🛠 *Maker:* [0xA1B2..F3E4](https://explorer.ethw/0xA1B2F3E4)
 
-📊 **Market Insights:**  
-💲 *Price per ETH:* $357.14  
-🏦 *Market Cap:* $420M  
+      // 📊 **Market Insights:**
+      // 💲 *Price per ETH:* $357.14
+      // 🏦 *Market Cap:* $420M
 
-🔗 **Quick Links:**  
-🔍 [Transaction](https://explorer.ethw/tx/0x1234ABCD5678) | 📈 [Chart](https://chart.ethw/0xETH1234) | 🛒 [Buy Now](https://dex.ethw)  
-`;
+      // 🔗 **Quick Links:**
+      // 🔍 [Transaction](https://explorer.ethw/tx/0x1234ABCD5678) | 📈 [Chart](https://chart.ethw/0xETH1234) | 🛒 [Buy Now](https://dex.ethw)
+      // `;
 
-      bot.sendPhoto(chatId, imgageUrl, {
-        caption: message,
-        parse_mode: "Markdown",
-        disable_web_page_preview: true,
-      });
+      //       bot.sendPhoto(chatId, imgageUrl, {
+      //         caption: message,
+      //         parse_mode: "Markdown",
+      //         disable_web_page_preview: true,
+      //       });
+
       // Send inline keyboard for group actions
       bot.sendMessage(
         chatId,
