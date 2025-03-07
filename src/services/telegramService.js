@@ -38,35 +38,10 @@ function sendTelegramNotification(
     ? `${transaction.maker.slice(0, 6)}..${transaction.maker.slice(-4)}`
     : "Unknown";
 
-  const totalAmountUSD = formatCurrency(
-    transaction.tokenPriceInUsd * transaction.amountOfToken
-  );
-
   const displayEmojis = generateEmojiNotification(
-    totalAmountUSD,
+    transaction.tokenPriceInUsd * transaction.amountOfToken,
     tokenSettings
   );
-
-  //   const message = `
-  // 🚀 *${transaction.tokenName} ${transaction.type.toUpperCase()}!*
-
-  // 🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢
-
-  // ⚽ *${formatCurrency(
-  //     transaction.tokenPriceInUsd * transaction.amountOfToken
-  //   )}* (${transaction.amountOfEthW} ETHW)
-  // 🎾 *${formatAmount(transaction.amountOfToken)}* ${tokenData.symbol}
-  // 🥏 *Maker:* [${shortMaker}](${explorer.explorer}/address/${
-  //     transaction.maker
-  //   }) 🆕
-
-  // 🏀 *Price:* $${transaction.tokenPriceInUsd}
-  // 🥎 *Market Cap:* $${transaction.marketCap}
-
-  // 🏈 [TX](${explorer.explorer}/tx/${transaction.txHash}) | 🪀 [Chart](${
-  //     explorer.chart
-  //   }/${transaction.tokenAddress}) | 🎣 [Buy](${explorer.dex})
-  //   `;
 
   const message = `
 🚀 *${transaction.tokenName} ${transaction.type.toUpperCase()}*  
@@ -126,7 +101,7 @@ function generateEmojiNotification(transactionAmount, groupSettings) {
   }
 
   // Calculate the number of emojis based on step size
-  const emojiCount = Math.ceil(transactionAmount / stepSize);
+  const emojiCount = Math.max(1, Math.ceil(transactionAmount / stepSize)); // Ensure at least 1 emoji
 
   // Generate the emoji string
   return emoji.repeat(emojiCount);
